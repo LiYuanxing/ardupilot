@@ -1,0 +1,197 @@
+# hw definition file for processing by chibios_hwdef.py
+
+# MCU class and specific type
+MCU STM32F4xx STM32F427xx
+
+# board ID for firmware load
+APJ_BOARD_ID 7
+
+# crystal frequency
+OSCILLATOR_HZ 8000000
+
+define STM32_PLLM_VALUE 8
+
+# board voltage
+STM32_VDD 330U
+
+# ChibiOS system timer
+STM32_ST_USE_TIMER 5
+
+# flash size
+FLASH_SIZE_KB 2048
+
+# serial port for stdout
+STDOUT_SERIAL SD7
+STDOUT_BAUDRATE 57600
+
+# USB setup
+USB_VENDOR 0x0483 # ST
+USB_PRODUCT 0x5740
+USB_STRING_MANUFACTURER "ArduPilot"
+USB_STRING_PRODUCT "%BOARD%"
+USB_STRING_SERIAL  "%SERIAL%"
+
+# order of I2C buses
+I2C_ORDER I2C1
+
+# order of UARTs (and USB)
+UART_ORDER OTG1 USART2 USART3 UART4 UART8 UART7
+
+# now we start on the pin definitions. Every pin used by ArduPilot
+# needs to be in this file. The format is P+port+pin. So PC4 is portC
+# pin4. For every pin the 2nd colum is the label. If this is a
+# peripheral that has an alternate function defined in the STM32
+# datasheet then the label must be the name of that alternative
+# function. The names are looked up in the python database for this
+# MCU. Please see STM32F427xx.py for the F427 database. That database
+# is used to automatically fill in the alternative function (and later
+# for the DMA channels).
+
+# The third column is the peripheral type. This must be one of the
+# following: UARTn, USARTn, OTGn, SPIn, I2Cn, ADCn, TIMn, SWD, SDIO,
+# INPUT, OUTPUT, CS
+
+# the fourth and later columns are for modifiers on the pin. The
+# possible modifiers are
+# pin speed: SPEED_VERYLOW, SPEED_LOW, SPEED_MEDIUM, SPEED_HIGH
+# pullup: PULLUP, PULLDOWN, FLOATING
+# out type: OPENDRAIN, PUSHPULL
+# default value: LOW, HIGH
+
+# Additionally, each class of pin peripheral can have extra modifiers
+#  suitable for that pin type. For example, for an OUTPUT you can map
+#  it to a GPIO number in hal.gpio using the GPIO(n) modifier. For ADC
+#  inputs you can apply a scaling factor (to bring it to unit volts)
+#  using the SCALE(x) modifier. See the examples below for more
+#  modifiers, or read the python code in chibios_hwdef.py
+
+# UART4 serial GPS
+PA0 UART4_TX UART4
+PA1 UART4_RX UART4
+PA4 VDD_5V_SENS ADC1 SCALE(16)
+PA5 SPI1_SCK SPI1
+PA6 SPI1_MISO SPI1
+#PA7
+#PA8
+PA9 VBUS INPUT OPENDRAIN
+#PA10
+PA11 OTG_FS_DM OTG1
+PA12 OTG_FS_DP OTG1
+PA13 JTMS-SWDIO SWD
+PA14 JTCK-SWCLK SWD
+
+PB2 BOOT1 INPUT
+PB5 SPI1_MOSI SPI1
+#PB6
+#PB7
+PB8 I2C1_SCL I2C1
+PB9 I2C1_SDA I2C1
+PB10 SPI2_SCK SPI2
+#PB11
+PB12 CAN2_RX CAN2
+PB13 CAN2_TX CAN2
+PB14 SPI2_MISO SPI2
+PB15 SPI2_MOSI SPI2
+
+#PC0
+PC1 IMU_CS0 CS
+#PC2
+PC3 FMU_AUX_ADC1 ADC1 SCALE(1)
+PC4 FMU_AUX_ADC2 ADC1 SCALE(1)
+#PC5
+PC6 TIM8_CH1 TIM8 RCIN FLOAT LOW
+PC8 SDIO_D0 SDIO
+PC9 SDIO_D1 SDIO
+PC10 SDIO_D2 SDIO
+PC11 SDIO_D3 SDIO
+PC12 SDIO_CK SDIO
+PC13 IMU_CS1 CS
+#PC14
+PC15 IMU_CS2 CS
+
+PD0 CAN1_RX CAN1
+PD1 CAN1_TX CAN1
+PD2 SDIO_CMD SDIO
+PD3 USART2_CTS USART2
+PD4 USART2_RTS USART2
+PD5 USART2_TX USART2
+PD6 USART2_RX USART2
+#PD7
+PD8 USART3_TX USART3
+PD9 USART3_RX USART3
+PD10 PWM_EN OUTPUT LOW
+#PD11
+
+PE0 UART8_RX UART8
+PE1 UART8_TX UART8
+PE2 SPI4_SCK SPI4
+PE3 IMU_CS3 CS
+PE4 VDD_3V3_SENSORS_EN OUTPUT OPENDRAIN LOW
+PE5 SPI4_MISO SPI4
+PE6 SPI4_MOSI SPI4
+PE7 UART7_RX UART7
+PE8 UART7_TX UART7
+#PE10
+PE12 FRAM_CS CS
+PE15 BARO_CS CS
+
+# PWM output
+PE9 TIM1_CH1 TIM1 PWM(1) GPIO(1)
+PE11 TIM1_CH2 TIM1 PWM(2) GPIO(2)
+PE13 TIM1_CH3 TIM1 PWM(3) GPIO(3)
+PE14 TIM1_CH4 TIM1 PWM(4) GPIO(4)
+PD12 TIM4_CH1 TIM4 PWM(5) GPIO(5)
+PD13 TIM4_CH2 TIM4 PWM(6) GPIO(6)
+PD14 TIM4_CH3 TIM4 PWM(7) GPIO(7)
+PD15 TIM4_CH4 TIM4 PWM(8) GPIO(8)
+PB4 TIM3_CH1 TIM3 PWM(9) GPIO(9)
+PC7 TIM3_CH2 TIM3 PWM(10) GPIO(10)
+PB0 TIM3_CH3 TIM3 PWM(11) GPIO(11)
+PB1 TIM3_CH4 TIM3 PWM(12) GPIO(12)
+PA15 TIM2_CH1 TIM2 PWM(13) GPIO(13)
+PB3 TIM2_CH2 TIM2 PWM(14) GPIO(14)
+PA2 TIM2_CH3 TIM2 PWM(15) GPIO(15)
+PA3 TIM2_CH4 TIM2 PWM(16) GPIO(16)
+
+# now the SPI device table. This table creates all accessible SPI
+# devices, giving the name of the device (which is used by device
+# drivers to open the device), plus which SPI bus it it on, what
+# device ID will be used (which controls the IDs used in parameters
+# such as COMPASS_DEV_ID, so we can detect when the list of devices
+# changes between reboots for calibration purposes), the SPI mode to
+# use, and the low and high speed settings for the device
+
+SPIDEV lps22h SPI2 DEVID0 BARO_CS MODE3 10*MHZ 10*MHZ
+SPIDEV ramtron SPI1 DEVID0 FRAM_CS MODE3  8*MHZ  8*MHZ
+SPIDEV mpu6000 SPI4 DEVID0 IMU_CS0 MODE0 8*MHZ 8*MHZ
+
+BARO LPS2XH SPI:lps22h
+IMU Invensense SPI:mpu6000 ROTATION_NONE
+
+define HAL_PROBE_EXTERNAL_I2C_COMPASSES
+define HAL_I2C_INTERNAL_MASK 0
+
+# now some defines for logging and terrain data files
+define HAL_BOARD_LOG_DIRECTORY "/APM/LOGS"
+define HAL_BOARD_TERRAIN_DIRECTORY "/APM/TERRAIN"
+
+# we need to tell HAL_ChibiOS/Storage.cpp how much storage is
+# available (in bytes)
+define HAL_STORAGE_SIZE 16384
+
+# now define fallback storage location is flash if no FRAM
+# fitted. This needs to be carefully chosen to align with your
+# bootloader. The flash storage system needs two sectors, and the
+# sectors must be at least 20% larger than HAL_STORAGE_SIZE
+define STORAGE_FLASH_PAGE 22
+
+# enable RAMTROM parameter storage
+define HAL_WITH_RAMTRON 1
+
+# enable FAT filesystem support (needs a microSD defined via SDIO)
+define HAL_OS_FATFS_IO 1
+
+# this defines the default maximum clock on I2C devices.
+define HAL_I2C_MAX_CLOCK 100000
+
+define BOARD_PWM_COUNT_DEFAULT 16
