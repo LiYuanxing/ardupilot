@@ -410,6 +410,10 @@ void AP_SerialManager::init()
                                          AP_SERIALMANAGER_SLCAN_BUFSIZE_TX);
                     break;
 
+                case SerialProtocol_HongWai:
+                    state[i].uart->begin(map_baudrate(state[i].baud),
+                                         128,
+                                         16);
 #ifndef HAL_BUILD_AP_PERIPH
                 case SerialProtocol_RCIN:
                     AP::RC().add_uart(state[i].uart);
