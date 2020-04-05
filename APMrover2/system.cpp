@@ -20,6 +20,7 @@ static void failsafe_check_static()
 
 void Rover::init_ardupilot()
 {
+	hal.scheduler->delay(5*1000);
     // initialise console serial port
     serial_manager.init_console();
 
