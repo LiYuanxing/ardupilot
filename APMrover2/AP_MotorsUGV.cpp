@@ -643,6 +643,7 @@ void AP_MotorsUGV::output_skid_steering(bool armed, float steering, float thrott
             SRV_Channels::set_output_limit(SRV_Channel::k_throttleLeft, SRV_Channel::SRV_CHANNEL_LIMIT_TRIM);
             SRV_Channels::set_output_limit(SRV_Channel::k_throttleRight, SRV_Channel::SRV_CHANNEL_LIMIT_TRIM);
         }
+        _relayEvents.do_set_relay(3, true);
         return;
     }
 
@@ -665,7 +666,11 @@ void AP_MotorsUGV::output_skid_steering(bool armed, float steering, float thrott
     const float motor_left = throttle_scaled + steering_scaled;
     const float motor_right = throttle_scaled - steering_scaled;
 
-    // send pwm value to each motor
+    //send pwm value to each motor
+    if(motor_left ==0 && motor_right ==0)
+    	_relayEvents.do_set_relay(3, true);
+    else
+    	_relayEvents.do_set_relay(3, false);
     output_throttle(SRV_Channel::k_throttleLeft, 100.0f * motor_left, dt);
     output_throttle(SRV_Channel::k_throttleRight, 100.0f * motor_right, dt);
 }
@@ -735,34 +740,29 @@ void AP_MotorsUGV::output_throttle(SRV_Channel::Aux_servo_function_t function, f
 
     // set relay if necessary
     if (_pwm_type == PWM_TYPE_BRUSHED_WITH_RELAY) {
-        // find the output channel, if not found return
+    	switch (function) {
+        case SRV_Channel::k_throttleLeft:
+        	if(throttle < 0)
+        		_relayEvents.do_set_relay(1, false);
+        	else
+        		_relayEvents.do_set_relay(1, true);
+            break;
+        case SRV_Channel::k_throttleRight:
+        	if(throttle < 0)
+        		_relayEvents.do_set_relay(2, true);
+        	else
+        		_relayEvents.do_set_relay(2, false);
+            break;
+        default:
+            // do nothing
+            break;
+    	}
+
         const SRV_Channel *out_chan = SRV_Channels::get_channel_for(function);
         if (out_chan == nullptr) {
             return;
         }
         const int8_t reverse_multiplier = out_chan->get_reversed() ? -1 : 1;
-        bool relay_high = is_negative(reverse_multiplier * throttle);
-
-        switch (function) {
-            case SRV_Channel::k_throttle:
-            case SRV_Channel::k_throttleLeft:
-            case SRV_Channel::k_motor1:
-                _relayEvents.do_set_relay(0, relay_high);
-                break;
-            case SRV_Channel::k_throttleRight:
-            case SRV_Channel::k_motor2:
-                _relayEvents.do_set_relay(1, relay_high);
-                break;
-            case SRV_Channel::k_motor3:
-                _relayEvents.do_set_relay(2, relay_high);
-                break;
-            case SRV_Channel::k_motor4:
-                _relayEvents.do_set_relay(3, relay_high);
-                break;
-            default:
-                // do nothing
-                break;
-        }
         // invert the output to always have positive value calculated by calc_pwm
         throttle = reverse_multiplier * fabsf(throttle);
     }
