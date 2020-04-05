@@ -64,8 +64,10 @@ bool sdcard_init()
     }
 
     const uint8_t tries = 3;
+    uint8_t pad[512] = {0};
     for (uint8_t i=0; i<tries; i++) {
         sdcconfig.slowdown = sd_slowdown;
+        sdcconfig.scratchpad = pad;
         sdcStart(&SDCD1, &sdcconfig);
         if(sdcConnect(&SDCD1) == HAL_FAILED) {
             sdcStop(&SDCD1);
