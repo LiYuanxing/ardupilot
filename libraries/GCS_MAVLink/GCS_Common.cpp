@@ -2899,6 +2899,111 @@ extern uint8_t a_up,a_down,a_left,a_right;
 extern uint8_t a_target_dir;
 #define A_BC_DIR 3.0
 extern uint8_t my_sys_id;
+void GCS_MAVLINK::handle_data_packet32(const mavlink_message_t &msg)
+{
+    if(my_sys_id == 1)
+    {
+    	return;
+    }
+	uint8_t count=0;
+    mavlink_data32_t data;
+    mavlink_msg_data32_decode(&msg, &data);
+
+    switch (data.type){
+    case 10:
+    	a_up = data.data[count];count++;
+    	a_down = data.data[count];count++;
+    	a_left = data.data[count];count++;
+    	a_right = data.data[count];count++;
+    	memcpy(&a_lat,&data.data[count],8);count+=8;
+    	memcpy(&a_lng,&data.data[count],8);count+=8;
+    	memcpy(&a_yaw,&data.data[count],4);count+=4;
+    	break;
+    }
+}
+void GCS_MAVLINK::handle_data_packet16(const mavlink_message_t &msg)
+{
+    if(my_sys_id == 1)
+    {
+    	return;
+    }
+
+    mavlink_data16_t data;
+    mavlink_msg_data16_decode(&msg, &data);
+
+    struct AP_Mission::Mission_Command cmd = {};
+    double t_lat,t_lng;
+    float  t_yaw35;
+    cmd.content.location = {};
+    cmd.content.location.alt = 10;
+    switch (data.type){
+    case 11:
+    	if(data.data[0] == 0x01 && data.data[1] == my_sys_id)//UP
+    	{
+    		t_yaw35 = a_yaw - 35;
+    		cal_target_yaw(t_yaw35);
+    		t_yaw   = a_yaw + 90;
+    		cal_target_yaw(t_yaw);
+    		computationx(a_lat, a_lng, t_yaw35, A_BC_DIR, t_lat,t_lng);
+        	AP::vehicle()->set_mode(15, ModeReason::GCS_COMMAND);
+        	t_lat = t_lat * 1.0e7;
+        	t_lng = t_lng * 1.0e7;
+    		cmd.content.location.lat = t_lat;
+    		cmd.content.location.lng = t_lng;
+    		handle_guided_request(cmd);
+    		a_target_dir = 1;
+    		printf("id:%d move up\n",my_sys_id);
+    	}else if(data.data[0] == 0x02 && data.data[1] == my_sys_id)//DOWN
+    	{
+    		t_yaw35 = a_yaw - 35 + 180;
+    		cal_target_yaw(t_yaw35);
+    		t_yaw   = a_yaw + 180 + 90;
+    		cal_target_yaw(t_yaw);
+    		computationx(a_lat, a_lng, t_yaw35, A_BC_DIR, t_lat,t_lng);
+        	AP::vehicle()->set_mode(15, ModeReason::GCS_COMMAND);
+        	t_lat = t_lat * 1.0e7;
+        	t_lng = t_lng * 1.0e7;
+    		cmd.content.location.lat = t_lat;
+    		cmd.content.location.lng = t_lng;
+    		handle_guided_request(cmd);
+    		a_target_dir = 2;
+    		printf("id:%d move down\n",my_sys_id);
+    	}else if(data.data[0] == 0x03 && data.data[1] == my_sys_id)//LEFT
+    	{
+    		t_yaw35 = a_yaw - 35 + 270;
+    		cal_target_yaw(t_yaw35);
+    		t_yaw   = a_yaw + 270 +90;
+    		cal_target_yaw(t_yaw);
+    		computationx(a_lat, a_lng, t_yaw35, A_BC_DIR, t_lat,t_lng);
+        	AP::vehicle()->set_mode(15, ModeReason::GCS_COMMAND);
+        	t_lat = t_lat * 1.0e7;
+        	t_lng = t_lng * 1.0e7;
+    		cmd.content.location.lat = t_lat;
+    		cmd.content.location.lng = t_lng;
+    		handle_guided_request(cmd);
+    		a_target_dir = 3;
+    		printf("id:%d move left\n",my_sys_id);
+    	}else if(data.data[0] == 0x04 && data.data[1] == my_sys_id)//RIGHT
+    	{
+    		t_yaw35 = a_yaw - 35 + 90;
+    		cal_target_yaw(t_yaw35);
+    		t_yaw   = a_yaw + 90 +90;
+    		cal_target_yaw(t_yaw);
+    		computationx(a_lat, a_lng, t_yaw35, A_BC_DIR, t_lat,t_lng);
+        	AP::vehicle()->set_mode(15, ModeReason::GCS_COMMAND);
+        	t_lat = t_lat * 1.0e7;
+        	t_lng = t_lng * 1.0e7;
+    		cmd.content.location.lat = t_lat;
+    		cmd.content.location.lng = t_lng;
+    		handle_guided_request(cmd);
+    		a_target_dir = 4;
+    		printf("id:%d move right\n",my_sys_id);
+    	}
+    	break;
+    default:
+        break;
+    }
+}
 
 void GCS_MAVLINK::handle_data_packet(const mavlink_message_t &msg)
 {
@@ -2920,103 +3025,6 @@ void GCS_MAVLINK::handle_data_packet(const mavlink_message_t &msg)
         break;
     }
 #endif
-
-    if(my_sys_id == 1)
-    {
-    	return;
-    }
-
-	uint8_t count=0;
-    mavlink_data96_t data;
-    mavlink_msg_data96_decode(&msg, &data);
-
-    struct AP_Mission::Mission_Command cmd = {};
-    double t_lat,t_lng;
-    float  t_yaw35;
-    cmd.content.location = {};
-    cmd.content.location.alt = 10;
-    switch (data.type){
-    case 10:
-    	a_up = data.data[count];count++;
-    	a_down = data.data[count];count++;
-    	a_left = data.data[count];count++;
-    	a_right = data.data[count];count++;
-    	memcpy(&a_lat,&data.data[count],8);count+=8;
-    	memcpy(&a_lng,&data.data[count],8);count+=8;
-    	memcpy(&a_yaw,&data.data[count],4);count+=4;
-    	break;
-    case 11:
-    	if(data.data[0] == 0x01 && data.data[1] == my_sys_id)//UP
-    	{
-    		t_yaw35 = a_yaw - 35;
-    		cal_target_yaw(t_yaw35);
-    		t_yaw   = a_yaw + 90;
-    		cal_target_yaw(t_yaw);
-    		computationx(a_lat, a_lng, t_yaw35, A_BC_DIR, t_lat,t_lng);
-        	AP::vehicle()->set_mode(15, ModeReason::GCS_COMMAND);
-        	t_lat = t_lat * 1.0e7;
-        	t_lng = t_lng * 1.0e7;
-    		cmd.content.location.lat = t_lat;
-    		cmd.content.location.lng = t_lng;
-    		handle_guided_request(cmd);
-    		a_target_dir = 1;
-    		printf("move up\n");
-    	}else if(data.data[0] == 0x02 && data.data[1] == my_sys_id)//DOWN
-    	{
-        	printf("a  lat:%lf  lng:%lf  yaw:%lf \n",a_lat,a_lng,a_yaw);
-    		t_yaw35 = a_yaw - 35 + 180;
-    		cal_target_yaw(t_yaw35);
-    		t_yaw   = a_yaw + 180 + 90;
-    		cal_target_yaw(t_yaw);
-    		computationx(a_lat, a_lng, t_yaw35, A_BC_DIR, t_lat,t_lng);
-    		printf("down f  lat:%lf  lng:%lf  yaw:%lf \n",t_lat,t_lng,t_yaw35);
-        	AP::vehicle()->set_mode(15, ModeReason::GCS_COMMAND);
-        	t_lat = t_lat * 1.0e7;
-        	t_lng = t_lng * 1.0e7;
-    		cmd.content.location.lat = t_lat;
-    		cmd.content.location.lng = t_lng;
-    		printf("down l lat:%d  lng:%d  yaw:%f \n",
-    				cmd.content.location.lat,
-					cmd.content.location.lng,
-					t_yaw35);
-    		handle_guided_request(cmd);
-    		a_target_dir = 2;
-    		printf("move down\n");
-    	}else if(data.data[0] == 0x03 && data.data[1] == my_sys_id)//LEFT
-    	{
-    		t_yaw35 = a_yaw - 35 + 270;
-    		cal_target_yaw(t_yaw35);
-    		t_yaw   = a_yaw + 270 +90;
-    		cal_target_yaw(t_yaw);
-    		computationx(a_lat, a_lng, t_yaw35, A_BC_DIR, t_lat,t_lng);
-        	AP::vehicle()->set_mode(15, ModeReason::GCS_COMMAND);
-        	t_lat = t_lat * 1.0e7;
-        	t_lng = t_lng * 1.0e7;
-    		cmd.content.location.lat = t_lat;
-    		cmd.content.location.lng = t_lng;
-    		handle_guided_request(cmd);
-    		a_target_dir = 3;
-    		printf("move left\n");
-    	}else if(data.data[0] == 0x04 && data.data[1] == my_sys_id)//RIGHT
-    	{
-    		t_yaw35 = a_yaw - 35 + 90;
-    		cal_target_yaw(t_yaw35);
-    		t_yaw   = a_yaw + 90 +90;
-    		cal_target_yaw(t_yaw);
-    		computationx(a_lat, a_lng, t_yaw35, A_BC_DIR, t_lat,t_lng);
-        	AP::vehicle()->set_mode(15, ModeReason::GCS_COMMAND);
-        	t_lat = t_lat * 1.0e7;
-        	t_lng = t_lng * 1.0e7;
-    		cmd.content.location.lat = t_lat;
-    		cmd.content.location.lng = t_lng;
-    		handle_guided_request(cmd);
-    		a_target_dir = 4;
-    		printf("move right\n");
-    	}
-    	break;
-    default:
-        break;
-    }
 }
 
 void GCS::request_charge_send(uint8_t type,uint8_t data)
@@ -3028,12 +3036,12 @@ void GCS::request_charge_send(uint8_t type,uint8_t data)
 void GCS_MAVLINK::request_charge_send(uint8_t type,uint8_t data)
 {
 	static uint8_t count = 0;
-	mavlink_data96_t msg;
+	mavlink_data16_t msg;
 	count++;
 	msg.type = type;
 	msg.data[0] = data;
 	msg.data[1] = count;
-	mavlink_msg_data96_send(chan, type, 1, msg.data);
+	mavlink_msg_data16_send(chan, type, 1, msg.data);
 }
 void GCS_MAVLINK::handle_vision_position_delta(const mavlink_message_t &msg)
 {
@@ -3369,7 +3377,15 @@ void GCS_MAVLINK::handle_common_message(const mavlink_message_t &msg)
 
     case MAVLINK_MSG_ID_DATA96:
         handle_data_packet(msg);
-        break;        
+        break;
+
+    case MAVLINK_MSG_ID_DATA32:
+        handle_data_packet32(msg);
+        break;
+
+    case MAVLINK_MSG_ID_DATA16:
+        handle_data_packet16(msg);
+        break;
 
     case MAVLINK_MSG_ID_VISION_POSITION_DELTA:
         handle_vision_position_delta(msg);

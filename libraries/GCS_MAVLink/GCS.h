@@ -426,6 +426,8 @@ protected:
     bool try_send_mission_message(enum ap_message id);
     void send_hwstatus();
     void handle_data_packet(const mavlink_message_t &msg);
+    void handle_data_packet16(const mavlink_message_t &msg);
+    void handle_data_packet32(const mavlink_message_t &msg);
     void computationx(double s_lat, double s_lng, double bring, double dis,double &t_lat,double &t_lng);
     void cal_target_yaw(float &t_yaw);
 
