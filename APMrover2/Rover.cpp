@@ -111,6 +111,10 @@ const AP_Scheduler::Task Rover::scheduler_tasks[] = {
 #if OSD_ENABLED == ENABLED
     SCHED_TASK(publish_osd_info,        1,     10),
 #endif
+#ifdef USER_COUDE
+    SCHED_TASK(user_code,             50,    200),
+	SCHED_TASK(user_guided,           1,    200),
+#endif
 };
 
 constexpr int8_t Rover::_failsafe_priorities[7];
@@ -121,6 +125,7 @@ Rover::Rover(void) :
     channel_steer(nullptr),
     channel_throttle(nullptr),
     channel_lateral(nullptr),
+	channel_return(nullptr),
     logger{g.log_bitmask},
     modes(&g.mode1),
     control_mode(&mode_initializing),
@@ -330,6 +335,367 @@ void Rover::update_mission(void)
         }
     }
 }
+#ifdef USER_COUDE
+struct PACKED bwbot {
+	uint8_t  head1;				//0xcd
+	uint8_t  head2;				//0xeb
+	uint8_t  head3;				//0xd7
+	uint8_t  len;				//0x37
+	float    power_charger; 	//当前充电极片电压，单位 V。
+	uint8_t  sum1;
+	float    power_battery; 	//当前电池电压，单位 V。
+	uint8_t  sum2;
+	float    current; 			//当前充电电流，单位 A。
+	uint8_t  sum3;
+	uint32_t left_sensor1; //左侧第一个红外传感器探测到的信号值，参考下文定义。
+	uint8_t  sum4;
+	uint32_t left_sensor2; //左侧第二个红外传感器探测到的信号值，参考下文定义。
+	uint8_t  sum5;
+	uint32_t right_sensor1; //右侧第一个红外传感器探测到的信号值，参考下文定义。
+	uint8_t  sum6;
+	uint32_t right_sensor2; //右侧第二个红外传感器探测到的信号值，参考下文定义。
+	uint8_t  sum7;
+	float distance1; //超声波模块测距值，单位 mm。
+	uint8_t  sum8;
+	float distance2; //保留，扩展用。
+	uint8_t  sum9;
+	uint32_t time_stamp; //时间戳,单位为 2 毫秒， 用于统计丢包率。
+	uint8_t  sum10;
+	uint32_t version; //版本号， 当前值为 3。
+	uint8_t  sum11;
+};
+
+
+bool Rover::check_bwbot(uint8_t *p,uint16_t len)
+{
+	if(len != 59)
+	{
+		return false;
+	}
+
+	if(p[0] != 0xcd || p[1] != 0xeb || p[2] != 0xd7 || p[3] != 0x37)
+	{
+		return false;
+	}
+
+	for(uint8_t i=0;i<11;i++)
+	{
+		uint8_t check = p[4+i*5] +p[5+i*5] +p[6+i*5] +p[7+i*5];
+		if(check != p[8+i*5])
+		{
+			return false;
+		}
+	}
+	return true;
+}
+#define BUF_LEN 120
+float   h_steering, h_throttle;
+#define MOVE_THR 25
+
+double a_lat,a_lng;
+float  t_yaw,a_yaw;
+uint8_t a_target_dir;
+uint8_t rover_reached_destination;
+uint8_t a_up,a_down,a_left,a_right;
+
+void Rover::user_code(void)
+{
+#if 1
+	static uint32_t time_p = 0 , error_time = 0;
+	bool   check_res = false;
+	uint8_t buf[BUF_LEN];
+	struct PACKED bwbot data;
+	uint16_t p = 0;
+	static uint8_t step_num = 0;
+	static uint8_t fil_count = 0;
+	uint8_t  id= g.sysid_this_mav;
+	static uint8_t init_charge = 0;
+#endif
+
+	AP_HAL::UARTDriver *user_uart1;
+	user_uart1 = serial_manager.find_serial(AP_SerialManager::SerialProtocol_HongWai, 0);
+	if (user_uart1 != nullptr)
+	{
+		user_uart1->begin(serial_manager.find_baudrate(AP_SerialManager::SerialProtocol_HongWai, 0));
+		uint16_t now_num = user_uart1->available();
+		if (now_num >= 59)
+		{
+			uint16_t j = 0;
+			for (uint16_t i = 0; i < now_num; i++)
+			{
+				j = (j >= BUF_LEN) ? 0 : j;
+				buf[j] = user_uart1->read();
+				j++;
+			}
+			for (uint16_t i = 0; i < 70; i++)
+			{
+				if (buf[i] == 0xcd && buf[i + 1] == 0xeb && buf[i + 2] == 0xd7 && buf[i + 3] == 0x37)
+				{
+					p = i;
+					check_res = check_bwbot(buf + i, 59);
+					if (check_res)
+					{
+						break;
+					}
+				}
+			}
+		}
+
+		if (check_res == true && id > 1 )
+		{
+			memcpy((uint8_t*) &data, buf + p, sizeof(data));
+			/*************************init****************************/
+			if(control_mode == &mode_manual &&
+			   channel_return->get_control_in() > 0 &&
+			   channel_return->get_control_in() < 1700 &&
+			   init_charge ==0 )//test charge
+			{
+				init_charge = 1;
+				step_num = 2;
+				printf("test charge\n");
+				error_time = AP_HAL::millis();
+			}else if(rover_reached_destination == 1 && a_target_dir > 0 )
+			{
+				rover_reached_destination = 0;
+				a_target_dir = 0;
+				set_mode(0, ModeReason::UNKNOWN);//mode_manual
+				step_num = 0;
+				init_charge = 1;
+				printf("guided ok\n");
+				error_time = AP_HAL::millis();
+			}
+
+			/*************************break**************************/
+			if(control_mode != &mode_manual)
+			{
+				//init
+				init_charge = 0;
+				step_num = 0;
+				h_steering = 0;
+				h_throttle = 0;
+				error_time = AP_HAL::millis();
+			}
+
+			/*************************run****************************/
+			if(init_charge == 1)
+			{
+				if(data.distance1/10 < 15)//stop
+				{
+					h_steering = h_throttle = 0;
+					arming.disarm();
+				}
+				float yaw = 0;
+				switch (step_num)
+				{
+				case 0:
+					if ((AP_HAL::millis() - error_time) > 2 * 1000)
+					{
+						error_time = AP_HAL::millis(); //update time
+						step_num++; //next statu
+						h_steering = 0;
+						h_throttle = 1;
+						rover_reached_destination = 0;
+					}
+					break;
+				case 1:
+					if ((AP_HAL::millis() - error_time) > 10 * 1000)
+					{
+						h_steering = h_throttle = 0; //error wait
+						fil_count = 0;
+					}
+					h_throttle = 0;
+					h_steering = 700;
+					yaw = ahrs.yaw*RAD_TO_DEG - t_yaw;
+					yaw = (yaw > 360)?(yaw-360):yaw;
+					yaw = (yaw < 0  )?(yaw+360):yaw;
+					if(fabs(yaw)<10)
+					{
+						error_time = AP_HAL::millis(); //update time
+						step_num++; //next statue
+
+						h_steering = 0;
+						rover_reached_destination = 0;
+					}
+					break;
+				case 2: //move up to find l1 l2
+					h_throttle = MOVE_THR; //0-100
+					if ((AP_HAL::millis() - error_time) > 10 * 1000)
+					{
+						h_steering = h_throttle = 0; //error wait
+						fil_count = 0;
+					}
+					else if (data.left_sensor1 > 0)
+					{
+						h_throttle = 0; //stop move
+						h_steering = 700; // turn right
+						error_time = AP_HAL::millis(); //update time
+						fil_count++;
+						if(fil_count > 5)
+						{
+							fil_count = 0;
+							step_num++; //next statue
+						}
+					}
+					else if (data.right_sensor2 > 0)
+					{
+						h_throttle = 0; //stop move
+						h_steering = -700; //turn left
+						error_time = AP_HAL::millis(); //update time
+						fil_count++;
+						if(fil_count > 5)
+						{
+							fil_count = 0;
+							step_num++; //next statue
+						}
+					}
+
+					break;
+				case 3://wait turn round
+					if ((AP_HAL::millis() - error_time) > 10 * 1000)
+					{
+						h_steering = h_throttle = 0; //error wait
+						fil_count = 0;
+					}
+					else if (data.left_sensor2 > 0 && data.right_sensor1 > 0)
+					{
+						h_steering = 0;
+						h_throttle = -MOVE_THR+10;
+						error_time = AP_HAL::millis(); //update time
+						fil_count++;
+						if(fil_count > 2)
+						{
+							fil_count = 0;
+							step_num++; //next statue
+						}
+					}
+					break;
+				case 4://wait distance
+					if (data.distance1 / 10 < 20)
+					{
+						h_steering = 0;
+						h_throttle = 0;
+						error_time = AP_HAL::millis(); //update time
+						step_num++; //next statue
+					}else if ((AP_HAL::millis() - error_time) > 20 * 1000)
+					{
+						h_steering = h_throttle = 0; //error wait
+						fil_count = 0;
+					}else if(((data.left_sensor1 ==2 || data.left_sensor2 ==2) && data.right_sensor1 == 0 && data.right_sensor2 == 0) ||
+							(data.left_sensor2 == 2 && data.right_sensor1 == 2))
+					{
+						h_steering = 150;
+						fil_count = 0;
+					}else if(((data.right_sensor1 ==1 || data.right_sensor2 ==1) && data.left_sensor1 == 0 && data.left_sensor2 == 0) ||
+							(data.left_sensor2 == 1 && data.right_sensor1 == 1))
+					{
+						h_steering = -150;
+						fil_count = 0;
+					}else if(data.left_sensor2 ==3 && data.right_sensor1 <3)
+					{
+						h_steering = 150;
+						fil_count = 0;
+					}else if(data.left_sensor2 <3 && data.right_sensor1 == 3)
+					{
+						h_steering = -150;
+						fil_count = 0;
+					}else if(data.left_sensor2 ==3 && data.right_sensor1 == 3)
+					{
+						h_steering = 0;
+					}
+					break;
+				case 5:
+					error_time = AP_HAL::millis(); //ok
+					break;
+				default:
+					step_num = 0;
+					h_steering = 0;
+					h_throttle = 0;
+					break;
+				}
+			}
+
+			if ((AP_HAL::millis() - time_p) > 1000)
+			{
+				time_p = AP_HAL::millis();
+#if 1
+//				printf("step:%d   on:%d  %d   %d   %d   %d   %3.2f   \n",
+//						step_num,channel_return->get_control_in(),
+//						data.left_sensor1,data.left_sensor2,
+//						data.right_sensor1,data.right_sensor2,
+//						data.distance1/10);
+//				printf("vol:%f \n",battery.voltage());
+//				printf("control_mode:%d get_control_in:%d init_charge:%d",control_mode,channel_return->get_control_in(),init_charge);
+				printf("init_charge:%d step_num:%d h_steering:%.1f h_throttle:%.1f \n",
+						init_charge,step_num,h_steering,h_throttle);
+#endif
+			}
+		}
+	}
+#if 0
+	AP_HAL::UARTDriver *user_uart1;
+	AP_HAL::UARTDriver *user_uart2;
+	user_uart1 = serial_manager.find_serial(AP_SerialManager::SerialProtocol_HongWai, 0);
+	user_uart2 = serial_manager.find_serial(AP_SerialManager::SerialProtocol_HongWai, 1);
+	if (user_uart1 != nullptr)
+	{
+		user_uart1->begin(serial_manager.find_baudrate(AP_SerialManager::SerialProtocol_HongWai, 0));
+		uint16_t now_num = user_uart1->available();
+		for (uint16_t i = 0; i < now_num; i++)
+		{
+			printf("%02x ",user_uart1->read());
+//			printf("%d\r\n",serial_manager.find_baudrate(AP_SerialManager::SerialProtocol_HongWai,0));
+		}
+	}
+//	else
+//	{
+//		printf("n1\r\n");
+//	}
+	if (user_uart2 != nullptr)
+	{
+		user_uart2->begin(serial_manager.find_baudrate(AP_SerialManager::SerialProtocol_HongWai, 2));
+		uint16_t now_num = user_uart2->available();
+		for (uint16_t i = 0; i < now_num; i++)
+		{
+			printf("%02x ",user_uart2->read());
+//			printf("%d\r\n",serial_manager.find_baudrate(AP_SerialManager::SerialProtocol_HongWai,1));
+		}
+	}
+//	else
+//	{
+//		printf("n1\r\n");
+//	}
+#else
+#endif
+}
+
+uint8_t my_sys_id = 0;
+void Rover::user_guided(void)
+{
+#if 1
+	uint8_t  id= g.sysid_this_mav;
+	my_sys_id = id;
+	char key[AP_MAX_NAME_SIZE+1]={0};
+	AP_Param *vp;
+	enum ap_var_type var_type = AP_PARAM_FLOAT;
+	memset(key, 0, AP_MAX_NAME_SIZE + 1);
+	strcpy(key, "BATT_ARM_VOLT");
+	vp = AP_Param::find(key, &var_type);
+	if (vp != nullptr && my_sys_id != 1)
+	{
+		if(battery.voltage() < vp->cast_to_float(var_type))
+		{
+			gcs().request_charge_send(id,1);
+			gcs().send_text(MAV_SEVERITY_INFO,("num:%d send req\n"),id);
+		}
+	}
+	if(channel_return->get_control_in() > 1700 && my_sys_id != 1)
+	{
+		gcs().request_charge_send(id,1);
+		gcs().send_text(MAV_SEVERITY_INFO,("num:%d send req\n"),id);
+	}
+#endif
+}
+#endif
 
 #if OSD_ENABLED == ENABLED
 void Rover::publish_osd_info()

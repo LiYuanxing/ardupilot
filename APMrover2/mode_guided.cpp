@@ -17,6 +17,8 @@ bool ModeGuided::_enter()
     return true;
 }
 
+extern uint8_t a_target_dir;
+extern uint8_t rover_reached_destination;
 void ModeGuided::update()
 {
     switch (_guided_mode) {
@@ -40,6 +42,12 @@ void ModeGuided::update()
                     }
                 } else {
                     stop_vehicle();
+                }
+
+                //
+                if(a_target_dir > 0)
+                {
+                	rover_reached_destination =1;
                 }
                 // update distance to destination
                 _distance_to_destination = rover.current_loc.get_distance(g2.wp_nav.get_destination());

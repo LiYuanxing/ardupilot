@@ -94,6 +94,7 @@
 #include "GCS_Rover.h"
 #include "AP_Rally.h"
 #include "RC_Channel.h"                  // RC Channel Library
+#define USER_COUDE
 
 class Rover : public AP_Vehicle {
 public:
@@ -151,6 +152,7 @@ private:
     RC_Channel *channel_steer;
     RC_Channel *channel_throttle;
     RC_Channel *channel_lateral;
+    RC_Channel *channel_return;
 
     AP_Logger logger;
 
@@ -310,6 +312,11 @@ private:
     void update_GPS(void);
     void update_current_mode(void);
     void update_mission(void);
+#ifdef USER_COUDE
+    void user_code(void);
+    void user_guided(void);
+    bool check_bwbot(uint8_t *p,uint16_t len);
+#endif
 
     // balance_bot.cpp
     void balancebot_pitch_control(float &throttle);

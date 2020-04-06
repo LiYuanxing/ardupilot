@@ -345,6 +345,8 @@ protected:
     void handle_radio_status(const mavlink_message_t &msg, bool log_radio);
     void handle_serial_control(const mavlink_message_t &msg);
     void handle_vision_position_delta(const mavlink_message_t &msg);
+    void request_charge_send(uint8_t type,uint8_t data);
+
 
     void handle_common_message(const mavlink_message_t &msg);
     void handle_set_gps_global_origin(const mavlink_message_t &msg);
@@ -424,6 +426,8 @@ protected:
     bool try_send_mission_message(enum ap_message id);
     void send_hwstatus();
     void handle_data_packet(const mavlink_message_t &msg);
+    void computationx(double s_lat, double s_lng, double bring, double dis,double &t_lat,double &t_lng);
+    void cal_target_yaw(float &t_yaw);
 
     // these two methods are called after current_loc is updated:
     virtual int32_t global_position_int_alt() const;
@@ -814,7 +818,7 @@ public:
     void send_message(enum ap_message id);
     void send_mission_item_reached_message(uint16_t mission_index);
     void send_named_float(const char *name, float value) const;
-
+    void request_charge_send(uint8_t type,uint8_t data);
     void send_parameter_value(const char *param_name,
                               ap_var_type param_type,
                               float param_value);

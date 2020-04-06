@@ -100,10 +100,22 @@ void Mode::get_pilot_input(float &steering_out, float &throttle_out)
 // decode pilot steering and throttle inputs and return in steer_out and throttle_out arguments
 // steering_out is in the range -4500 ~ +4500 with positive numbers meaning rotate clockwise
 // throttle_out is in the range -100 ~ +100
+extern float h_steering, h_throttle;
 void Mode::get_pilot_desired_steering_and_throttle(float &steering_out, float &throttle_out)
 {
     // do basic conversion
     get_pilot_input(steering_out, throttle_out);
+    steering_out += h_steering;
+    throttle_out += h_throttle;
+
+#if 0
+	static uint32_t time_p = 0;
+	if ((AP_HAL::millis() - time_p) > 1000)
+	{
+		time_p = AP_HAL::millis();
+		printf("steering_out:%f throttle_out:%f",steering_out,throttle_out);
+	}
+#endif
 
     // check for special case of input and output throttle being in opposite directions
     float throttle_out_limited = g2.motors.get_slew_limited_throttle(throttle_out, rover.G_Dt);

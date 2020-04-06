@@ -2784,6 +2784,122 @@ void GCS_MAVLINK::handle_set_gps_global_origin(const mavlink_message_t &msg)
 /*
   handle a DATA96 message
  */
+void GCS_MAVLINK::computationx(double s_lat, double s_lng, double bring, double dis,double &t_lat,double &t_lng)
+{
+	double pi = 3.141592653589793;
+	double rad = pi / 180;
+	double b1 = s_lat;
+	double l1 = s_lng;
+	double a1 = bring;
+	double s = dis;
+	double a = 6378245.0;
+	double b = 6356752.3142;
+//	double c = a*a/b;
+//	double alpha = (a - b) /a;
+	double e = safe_sqrt(a *a - b *b) /a;
+	double e2 = safe_sqrt(a *a - b *b) / b;
+	b1 = rad * b1;
+	l1 = rad * l1;
+	a1 = rad * a1;
+	double w = safe_sqrt(1 - e *e * (sinf(b1) *sinf(b1)));
+//	double v = w * (a / b);
+	//Dim W1 As Double
+	double e1 = e ;//第一偏心率
+	//计算起点的归化纬度
+	double w1 = w;
+	//Sqr(1 - e1 * e1 * Sin(B1 ) * Sin(B1 ))
+	double sinu1 = sinf(b1) * safe_sqrt(1 - e1 * e1) / w1;
+	double cosu1 = cosf(b1) / w1;
+	//计算辅助函数值
+	double sinA0 = cosu1 * sinf(a1);
+	double cotq1 = cosu1 * cosf(a1);
+	double sin2q1 = 2 * cotq1 / (cotq1*cotq1 + 1);
+	double cos2q1 = (cotq1 *cotq1 - 1) / (cotq1*cotq1 + 1);
+	//计算系数AA,BB,CC及AAlpha, BBeta的值。
+	double cos2A0 = 1 - sinA0 *sinA0;
+	e2 = safe_sqrt(a *a - b *b) / b;
+	double k2 = e2 * e2 * cos2A0;
+	//Dim aa, BB, CC, EE22, AAlpha, BBeta As Double
+	double aa = b * (1 + k2 / 4 - 3 * k2 * k2 / 64 + 5 * k2 * k2 * k2 / 256);
+	double bB = b * (k2 / 8 - k2 * k2 / 32 + 15 * k2 * k2 * k2 / 1024);
+	double cC = b * (k2 * k2 / 128 - 3 * k2 * k2 * k2 / 512);
+	       e2 = e1 * e1;
+	double aAlpha = (e2 / 2 + e2 * e2 / 8 + e2 * e2 * e2 / 16) - (e2 * e2 / 16 + e2 * e2 * e2 / 16) * cos2A0 + (3 * e2 * e2* e2 / 128) * cos2A0 * cos2A0;
+	double bBeta = (e2 * e2 / 32 + e2 * e2 * e2 / 32) * cos2A0 - (e2 * e2 * e2 / 64) * cos2A0 * cos2A0;
+	    //计算球面长度
+	double q0 = (s - (bB + cC * cos2q1) * sin2q1) / aa;
+	double sin2q1q0 = sin2q1 * cosf(2 * q0) + cos2q1 * sinf(2 * q0);
+	double cos2q1q0 = cos2q1 * cosf(2 * q0) - sin2q1 * sinf(2 * q0);
+	double q = q0 + (bB + 5 * cC * cos2q1q0) * sin2q1q0 / aa;
+	    //'// 计算经度差改正数
+	double theta = (aAlpha * q + bBeta * (sin2q1q0 - sin2q1)) * sinA0;
+	    //计算终点大地坐标及大地方位角
+	double sinu2 = sinu1 * cosf(q) + cosu1 * cosf(a1) * sinf(q);
+	double b2 = atanf(sinu2 / (safe_sqrt(1 - e1 * e1) * safe_sqrt(1 - sinu2 * sinu2))) * 180 / pi;
+	double lamuda = atanf(sinf(a1) * sinf(q) / (cosu1 * cosf(q) - sinu1 * sinf(q) * cosf(a1))) * 180 / pi;
+	if (sinf(a1) > 0)
+	{
+		if (sinf(a1) * sinf(q) / (cosu1 * cosf(q) - sinu1 * sinf(q) * cosf(a1)) > 0)
+		{
+			lamuda = abs(lamuda);
+		}else
+		{
+			lamuda = 180 - abs(lamuda);
+		}
+	}else
+	{
+		if (sinf(a1) * sinf(q) / (cosu1 * cosf(q) - sinu1 * sinf(q) * cosf(a1)) > 0){
+			lamuda = abs(lamuda) - 180;
+		}
+		else
+		{
+			lamuda = -abs(lamuda);
+		}
+	}
+	double l2 = l1 * 180 / pi + lamuda - theta * 180 / pi;
+	double a2 = atanf(cosu1 * sinf(a1) / (cosu1 * cosf(q) * cosf(a1) - sinu1 * sinf(q))) * 180 / pi;
+	if (sinf(a1) > 0)
+	{
+		if (cosu1 * sinf(a1) / (cosu1 * cosf(q) * cosf(a1) - sinu1 * sinf(q)) > 0)
+		{
+			a2 = 180 + abs(a2);
+		}else
+		{
+			a2 = 360 - abs(a2);
+		}
+	}else
+	{
+		if (cosu1 * sinf(a1) / (cosu1 * cosf(q) * cosf(a1) - sinu1 * sinf(q)) > 0)
+		{
+			a2 = abs(a2);
+		}else
+		{
+			a2 = 180 - abs(a2);
+		}
+	}//A2代表北偏西的角度
+	t_lat = b2;
+	t_lng = l2;
+	//location=array("lng"=>l2,"lat"=>b2);
+}
+
+void GCS_MAVLINK::cal_target_yaw(float &t_yaw)
+{
+	if(t_yaw > 360)
+	{
+		t_yaw -= 360;
+	}else if(t_yaw < 0)
+	{
+		t_yaw += 360;
+	}
+}
+
+extern double  a_lat,a_lng;
+extern float   t_yaw,a_yaw;
+extern uint8_t a_up,a_down,a_left,a_right;
+extern uint8_t a_target_dir;
+#define A_BC_DIR 3.0
+extern uint8_t my_sys_id;
+
 void GCS_MAVLINK::handle_data_packet(const mavlink_message_t &msg)
 {
 #if HAL_RCINPUT_WITH_AP_RADIO
@@ -2804,8 +2920,121 @@ void GCS_MAVLINK::handle_data_packet(const mavlink_message_t &msg)
         break;
     }
 #endif
+
+    if(my_sys_id == 1)
+    {
+    	return;
+    }
+
+	uint8_t count=0;
+    mavlink_data96_t data;
+    mavlink_msg_data96_decode(&msg, &data);
+
+    struct AP_Mission::Mission_Command cmd = {};
+    double t_lat,t_lng;
+    float  t_yaw35;
+    cmd.content.location = {};
+    cmd.content.location.alt = 10;
+    switch (data.type){
+    case 10:
+    	a_up = data.data[count];count++;
+    	a_down = data.data[count];count++;
+    	a_left = data.data[count];count++;
+    	a_right = data.data[count];count++;
+    	memcpy(&a_lat,&data.data[count],8);count+=8;
+    	memcpy(&a_lng,&data.data[count],8);count+=8;
+    	memcpy(&a_yaw,&data.data[count],4);count+=4;
+    	break;
+    case 11:
+    	if(data.data[0] == 0x01 && data.data[1] == my_sys_id)//UP
+    	{
+    		t_yaw35 = a_yaw - 35;
+    		cal_target_yaw(t_yaw35);
+    		t_yaw   = a_yaw + 90;
+    		cal_target_yaw(t_yaw);
+    		computationx(a_lat, a_lng, t_yaw35, A_BC_DIR, t_lat,t_lng);
+        	AP::vehicle()->set_mode(15, ModeReason::GCS_COMMAND);
+        	t_lat = t_lat * 1.0e7;
+        	t_lng = t_lng * 1.0e7;
+    		cmd.content.location.lat = t_lat;
+    		cmd.content.location.lng = t_lng;
+    		handle_guided_request(cmd);
+    		a_target_dir = 1;
+    		printf("move up\n");
+    	}else if(data.data[0] == 0x02 && data.data[1] == my_sys_id)//DOWN
+    	{
+        	printf("a  lat:%lf  lng:%lf  yaw:%lf \n",a_lat,a_lng,a_yaw);
+    		t_yaw35 = a_yaw - 35 + 180;
+    		cal_target_yaw(t_yaw35);
+    		t_yaw   = a_yaw + 180 + 90;
+    		cal_target_yaw(t_yaw);
+    		computationx(a_lat, a_lng, t_yaw35, A_BC_DIR, t_lat,t_lng);
+    		printf("down f  lat:%lf  lng:%lf  yaw:%lf \n",t_lat,t_lng,t_yaw35);
+        	AP::vehicle()->set_mode(15, ModeReason::GCS_COMMAND);
+        	t_lat = t_lat * 1.0e7;
+        	t_lng = t_lng * 1.0e7;
+    		cmd.content.location.lat = t_lat;
+    		cmd.content.location.lng = t_lng;
+    		printf("down l lat:%d  lng:%d  yaw:%f \n",
+    				cmd.content.location.lat,
+					cmd.content.location.lng,
+					t_yaw35);
+    		handle_guided_request(cmd);
+    		a_target_dir = 2;
+    		printf("move down\n");
+    	}else if(data.data[0] == 0x03 && data.data[1] == my_sys_id)//LEFT
+    	{
+    		t_yaw35 = a_yaw - 35 + 270;
+    		cal_target_yaw(t_yaw35);
+    		t_yaw   = a_yaw + 270 +90;
+    		cal_target_yaw(t_yaw);
+    		computationx(a_lat, a_lng, t_yaw35, A_BC_DIR, t_lat,t_lng);
+        	AP::vehicle()->set_mode(15, ModeReason::GCS_COMMAND);
+        	t_lat = t_lat * 1.0e7;
+        	t_lng = t_lng * 1.0e7;
+    		cmd.content.location.lat = t_lat;
+    		cmd.content.location.lng = t_lng;
+    		handle_guided_request(cmd);
+    		a_target_dir = 3;
+    		printf("move left\n");
+    	}else if(data.data[0] == 0x04 && data.data[1] == my_sys_id)//RIGHT
+    	{
+    		t_yaw35 = a_yaw - 35 + 90;
+    		cal_target_yaw(t_yaw35);
+    		t_yaw   = a_yaw + 90 +90;
+    		cal_target_yaw(t_yaw);
+    		computationx(a_lat, a_lng, t_yaw35, A_BC_DIR, t_lat,t_lng);
+        	AP::vehicle()->set_mode(15, ModeReason::GCS_COMMAND);
+        	t_lat = t_lat * 1.0e7;
+        	t_lng = t_lng * 1.0e7;
+    		cmd.content.location.lat = t_lat;
+    		cmd.content.location.lng = t_lng;
+    		handle_guided_request(cmd);
+    		a_target_dir = 4;
+    		printf("move right\n");
+    	}
+    	break;
+    default:
+        break;
+    }
 }
 
+void GCS::request_charge_send(uint8_t type,uint8_t data)
+{
+    for (uint8_t i=0; i<num_gcs(); i++) {
+    	chan(i)->request_charge_send(type,data);
+    }
+}
+void GCS_MAVLINK::request_charge_send(uint8_t type,uint8_t data)
+{
+	static uint8_t count = 0;
+	mavlink_data96_t msg;
+	count++;
+	msg.type = type;
+	msg.data[0] = data;
+	msg.data[1] = count;
+	mavlink_msg_data96_send(chan, type, 1, msg.data);
+}
 void GCS_MAVLINK::handle_vision_position_delta(const mavlink_message_t &msg)
 {
     AP_VisualOdom *visual_odom = AP::visualodom();
