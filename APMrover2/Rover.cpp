@@ -395,6 +395,7 @@ float   h_steering, h_throttle;
 double a_lat,a_lng;
 float  t_yaw,a_yaw;
 uint8_t a_target_dir;
+uint8_t test_count=0;
 uint8_t rover_reached_destination;
 uint8_t a_up,a_down,a_left,a_right;
 
@@ -450,10 +451,15 @@ void Rover::user_code(void)
 			   channel_return->get_control_in() < 1700 &&
 			   init_charge ==0 )//test charge
 			{
-				init_charge = 1;
-				step_num = 2;
-				printf("test charge\n");
-				error_time = AP_HAL::millis();
+				test_count++;//20Hz
+				if(test_count>20*2)
+				{
+					test_count=0;
+					init_charge = 1;
+					step_num = 2;
+					printf("id:%d test charge\n",id);
+					error_time = AP_HAL::millis();
+				}
 			}else if(rover_reached_destination == 1 && a_target_dir > 0 )
 			{
 				rover_reached_destination = 0;
@@ -461,7 +467,7 @@ void Rover::user_code(void)
 				set_mode(0, ModeReason::UNKNOWN);//mode_manual
 				step_num = 0;
 				init_charge = 1;
-				printf("guided ok\n");
+				printf("id:%d guided ok\n",id);
 				error_time = AP_HAL::millis();
 			}
 
@@ -473,13 +479,14 @@ void Rover::user_code(void)
 				step_num = 0;
 				h_steering = 0;
 				h_throttle = 0;
+				test_count=0;
 				error_time = AP_HAL::millis();
 			}
 
 			/*************************run****************************/
 			if(init_charge == 1)
 			{
-				if(data.distance1/10 < 15)//stop
+				if(data.distance1/10 < 13)//stop
 				{
 					h_steering = h_throttle = 0;
 					arming.disarm();
@@ -570,7 +577,7 @@ void Rover::user_code(void)
 					}
 					break;
 				case 4://wait distance
-					if (data.distance1 / 10 < 20)
+					if (data.distance1 / 10 < 23)
 					{
 						h_steering = 0;
 						h_throttle = 0;
@@ -617,16 +624,17 @@ void Rover::user_code(void)
 			if ((AP_HAL::millis() - time_p) > 1000)
 			{
 				time_p = AP_HAL::millis();
-#if 1
-//				printf("step:%d   on:%d  %d   %d   %d   %d   %3.2f   \n",
-//						step_num,channel_return->get_control_in(),
-//						data.left_sensor1,data.left_sensor2,
-//						data.right_sensor1,data.right_sensor2,
-//						data.distance1/10);
+#if 0
+				printf("id:%d step:%d   on:%d  %d   %d   %d   %d   %3.2f   \n",
+						id,
+						step_num,channel_return->get_control_in(),
+						data.left_sensor1,data.left_sensor2,
+						data.right_sensor1,data.right_sensor2,
+						data.distance1/10);
 //				printf("vol:%f \n",battery.voltage());
 //				printf("control_mode:%d get_control_in:%d init_charge:%d",control_mode,channel_return->get_control_in(),init_charge);
-				printf("init_charge:%d step_num:%d h_steering:%.1f h_throttle:%.1f \n",
-						init_charge,step_num,h_steering,h_throttle);
+//				printf("init_charge:%d step_num:%d h_steering:%.1f h_throttle:%.1f \n",
+//						init_charge,step_num,h_steering,h_throttle);
 #endif
 			}
 		}

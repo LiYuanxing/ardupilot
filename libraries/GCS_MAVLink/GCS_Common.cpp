@@ -2918,6 +2918,7 @@ void GCS_MAVLINK::handle_data_packet32(const mavlink_message_t &msg)
     	memcpy(&a_lat,&data.data[count],8);count+=8;
     	memcpy(&a_lng,&data.data[count],8);count+=8;
     	memcpy(&a_yaw,&data.data[count],4);count+=4;
+    	printf("A: lat:%f lng:%f \n",a_lat,a_lng);
     	break;
     }
 }
@@ -2945,6 +2946,7 @@ void GCS_MAVLINK::handle_data_packet16(const mavlink_message_t &msg)
     		t_yaw   = a_yaw + 90;
     		cal_target_yaw(t_yaw);
     		computationx(a_lat, a_lng, t_yaw35, A_BC_DIR, t_lat,t_lng);
+    		printf("id:%d move up lat:%.6f lng:%.6f \n",my_sys_id,t_lat,t_lng);
         	AP::vehicle()->set_mode(15, ModeReason::GCS_COMMAND);
         	t_lat = t_lat * 1.0e7;
         	t_lng = t_lng * 1.0e7;
@@ -2952,7 +2954,6 @@ void GCS_MAVLINK::handle_data_packet16(const mavlink_message_t &msg)
     		cmd.content.location.lng = t_lng;
     		handle_guided_request(cmd);
     		a_target_dir = 1;
-    		printf("id:%d move up\n",my_sys_id);
     	}else if(data.data[0] == 0x02 && data.data[1] == my_sys_id)//DOWN
     	{
     		t_yaw35 = a_yaw - 35 + 180;
