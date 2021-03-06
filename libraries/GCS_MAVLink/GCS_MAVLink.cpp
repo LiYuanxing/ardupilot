@@ -118,22 +118,77 @@ uint16_t comm_get_txspace(mavlink_channel_t chan)
 /*
   send a buffer out a MAVLink channel
  */
+uint8_t new_buf[256 + 18]={0};
+uint8_t pack_len = 0,init=0,head_flag=0;
+uint64_t mac = 0x13A2004163FFD1;
 void comm_send_buffer(mavlink_channel_t chan, const uint8_t *buf, uint8_t len)
 {
-    if (!valid_channel(chan)) {
-        return;
-    }
-    if (gcs_alternative_active[chan]) {
-        // an alternative protocol is active
-        return;
-    }
-    const size_t written = mavlink_comm_port[chan]->write(buf, len);
 #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
     if (written < len) {
         AP_HAL::panic("Short write on UART: %lu < %u", (unsigned long)written, len);
     }
 #else
-    (void)written;
+    if(init==0)
+	{
+		init=1;
+		new_buf[0] = 0x7E;
+		new_buf[1] = (14 + len) & 0xFF00;
+		new_buf[2] = (14 + len) & 0x00FF;
+		new_buf[3] = 0x10;
+		new_buf[4] = 0x00;
+
+		new_buf[5] = mac >> 56 & 0xFF;
+		new_buf[6] = mac >> 48 & 0xFF;
+		new_buf[7] = mac >> 40 & 0xFF;
+		new_buf[8] = mac >> 32 & 0xFF;
+		new_buf[9] = mac >> 24 & 0xFF;
+		new_buf[10] = mac >> 16 & 0xFF;
+		new_buf[11] = mac >> 8 & 0xFF;
+		new_buf[12] = mac >> 0 & 0xFF;
+
+		new_buf[13] = 0xFF;
+		new_buf[14] = 0xFE;
+
+		new_buf[15] = 0;
+		new_buf[16] = 0;
+	}
+	if(chan==0)
+	{
+		mavlink_comm_port[chan]->write(buf, len);
+	}else if (len == 6 && buf[0] == 0xFE)
+	{
+		memcpy(new_buf + 17, buf, 6);
+		head_flag=1;
+	}
+	else if (head_flag==1)
+	{
+		memcpy(new_buf + 17 + 6, buf, len);
+		pack_len = len;
+		head_flag=0;
+	}
+	else if (len == 2 && head_flag==0)
+	{
+		memcpy(new_buf + 17 + 6 + pack_len, buf, 2);
+
+		new_buf[1] = (14 + 6+pack_len+2) & 0xFF00;
+		new_buf[2] = (14 + 6+pack_len+2) & 0x00FF;
+		new_buf[17 + 6 + pack_len + 2] = 0;
+
+		for (uint16_t i = 3; i < 17 + 6 + pack_len + 2; i++)
+		{
+			new_buf[17 + 6 + pack_len + 2] += new_buf[i];
+		}
+		new_buf[17 + 6 + pack_len + 2] = 0xFF - new_buf[17 + 6 + pack_len + 2];
+
+		if (!valid_channel(chan))
+		{
+			return;
+		}
+		mavlink_comm_port[chan]->write(new_buf, 17 + 6 + pack_len + 2 + 1);
+	}else
+	{
+		head_flag=0;
+	}
 #endif
 }
 

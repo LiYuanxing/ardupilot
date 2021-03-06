@@ -1301,6 +1301,7 @@ void GCS_MAVLINK::packetReceived(const mavlink_status_t &status,
     handleMessage(msg);
 }
 
+uint8_t wait_zero=0,wait_count=0,in_wait_flag=0;
 void
 GCS_MAVLINK::update_receive(uint32_t max_time_us)
 {
@@ -1320,11 +1321,37 @@ GCS_MAVLINK::update_receive(uint32_t max_time_us)
     status.packet_rx_drop_count = 0;
 
     const uint16_t nbytes = _port->available();
+ 	if (nbytes == 0)
+ 	{
+ 		wait_zero++;
+ 		if (wait_zero > 3)
+ 		{
+ 			wait_zero=wait_count=in_wait_flag=0;
+ 		}
+ 	}else
+ 	{
+ 		wait_zero=0;
+ 	}
+
     for (uint16_t i=0; i<nbytes; i++)
     {
         const uint8_t c = (uint8_t)_port->read();
         const uint32_t protocol_timeout = 4000;
         
+        if (c == 0x7E && wait_count == 0)
+ 		{
+ 			in_wait_flag=1;
+ 			wait_count++;
+ 		}
+ 
+ 		if(in_wait_flag==1)
+ 		{
+ 			wait_count++;
+ 		}
+ 
+ 		if (wait_count <= 15 && chan!=0)
+ 			continue;
+
         if (alternative.handler &&
             now_ms - alternative.last_mavlink_ms > protocol_timeout) {
             /*
