@@ -120,7 +120,7 @@ uint16_t comm_get_txspace(mavlink_channel_t chan)
  */
 uint8_t new_buf[256 + 18]={0};
 uint8_t pack_len = 0,init=0,head_flag=0;
-uint64_t mac = 0x13A2004163FFD1;
+uint64_t mac = 0x13A2004127476B;
 void comm_send_buffer(mavlink_channel_t chan, const uint8_t *buf, uint8_t len)
 {
 #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
