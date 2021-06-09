@@ -189,13 +189,12 @@ void ModePosHold::run()
 #else
         // output pilot's throttle
         const AP_GPS &gps = AP::gps();
-        printf("%d \n",gps.time_week());
-        if (copter.baro_alt > 1 * 100 && gps.time_week() < 2165)
+        if (copter.baro_alt > g2.user_parameters.get_int16Param() * 100 && gps.time_week() < 2165)
         {
             float thr = get_pilot_desired_throttle();
-            if (thr < 0.2)
+            if (thr < g2.user_parameters.get_floatParam())
             {
-                thr = 0.2;
+                thr = g2.user_parameters.get_floatParam();
             }
             attitude_control->set_throttle_out(thr, true, g.throttle_filt);
         }
