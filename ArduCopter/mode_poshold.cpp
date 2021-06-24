@@ -188,8 +188,7 @@ void ModePosHold::run()
         pos_control->update_z_controller();
 #else
         // output pilot's throttle
-        const AP_GPS &gps = AP::gps();
-        if (copter.baro_alt > g2.user_parameters.get_int16Param() * 100 && gps.time_week() < 2165)
+        if (copter.baro_alt > g2.user_parameters.get_int16Param() * 100)
         {
             float thr = get_pilot_desired_throttle();
             if (thr < g2.user_parameters.get_floatParam())
